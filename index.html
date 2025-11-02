@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CREATE - Видео Хостинг</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial; }
+        body { background: #0f0f0f; color: white; padding: 20px; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .logo { color: #ff0000; font-size: 32px; font-weight: bold; }
+        .create-btn { background: #ff0000; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        
+        .upload-form { 
+            display: none;
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            background: #282828; padding: 30px; border-radius: 8px; z-index: 1000; 
+            width: 90%; max-width: 500px; 
+        }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; }
+        input, textarea { width: 100%; padding: 12px; background: #404040; border: 1px solid #555; border-radius: 4px; color: white; }
+        textarea { height: 100px; resize: vertical; }
+        .submit-btn { background: #ff0000; color: white; padding: 15px; border: none; border-radius: 4px; cursor: pointer; width: 100%; font-size: 16px; }
+        .cancel-btn { background: #666; color: white; padding: 15px; border: none; border-radius: 4px; cursor: pointer; width: 100%; margin-top: 10px; }
+        
+        .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; margin-top: 20px; }
+        .video-card { background: #282828; border-radius: 8px; overflow: hidden; }
+        .video-player { width: 100%; height: 200px; background: #000; }
+        .video-info { padding: 15px; }
+        .video-title { font-size: 18px; margin-bottom: 8px; }
+        .video-description { color: #aaa; margin-bottom: 8px; font-size: 14px; }
+        .video-views { color: #888; font-size: 14px; }
+        
+        .overlay { 
+            display: none; 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.8); z-index: 999; 
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">CREATE</div>
+        <button class="create-btn" onclick="showUploadForm()">📹 СОЗДАТЬ ВИДЕО</button>
+    </div>
+
+    <div class="video-grid" id="videoGrid">
+        <div style="text-align: center; grid-column: 1 / -1; color: #888;">
+            🔄 Загрузка видео...
+        </div>
+    </div>
+
+    <div class="overlay" id="overlay" onclick="hideUploadForm()"></div>
+    <div class="upload-form" id="uploadForm">
+        <h2 style="text-align: center; margin-bottom: 20px;">📹 СОЗДАТЬ ВИДЕО</h2>
+        <form id="uploadFormElement">
+            <div class="form-group">
+                <label>Название видео:</label>
+                <input type="text" id="videoTitle" required>
+            </div>
+            
+            <div class="form-group">
+                <label>Описание:</label>
+                <textarea id="videoDescription"></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label>Ссылка на YouTube видео:</label>
+                <input type="url" id="videoUrl" placeholder="https://www.youtube.com/watch?v=..." required>
+            </div>
+            
+            <button type="submit" class="submit-btn">🚀 ОПУБЛИКОВАТЬ</button>
+            <button type="button" class="cancel-btn" onclick="hideUploadForm()">❌ ОТМЕНА</button>
+        </form>
+    </div>
+
+    <script>
+        // 🔥 ВАША НОВАЯ RAW ССЫЛКА
+        const GIST_URL = 'https://gist.githubusercontent.com/catrpgorodroleplay-netizen/37bb54043cf3204d877e747ac9134baa/raw/0602705279926ad43ea1de0b8ad087dc8ea7482f/database.json';
+        
+        let allVideos = [];
+        
+        // Загрузить видео из Gist
+        async function loadVideos() {
+            try {
+                const response = await fetch(GIST_URL + '?t=' + Date.now());
+                const data = await response.json();
+                allVideos = data.videos || [];
+                displayVideos(allVideos);
+                
+                console.log('✅ Видео загружены:', allVideos.length);
+            } catch (error) {
+                console.error('❌ Ошибка загрузки:', error);
+                // Если не удалось загрузить, используем локальные
+                const localVideos = localStorage.getItem('create_videos');
+                if (localVideos) {
+                    allVideos = JSON.parse(localVideos);
+                    displayVideos(allVideos);
+                }
+            }
+        }
+        
+        // Добавить видео
+        function addVideo(title, description, videoUrl) {
+            const newVideo = {
+                id: Date.now(),
+                title: title,
+                description: description,
+                videoUrl: videoUrl,
+                views: 0,
+                date: new Date().toLocaleDateString('ru-RU'),
+                author: "Пользователь"
+            };
+            
+            allVideos.unshift(newVideo);
+            localStorage.setItem('create_videos', JSON.stringify(allVideos));
+            
+            return newVideo;
+        }
+        
+        // Отобразить видео
+        function displayVideos(videos) {
+            const videoGrid = document.getElementById('videoGrid');
+            
+            if (videos.length === 0) {
+                videoGrid.innerHTML = '<div style="text-align: center; grid-column: 1 / -1; color: #888;">🎬 Пока нет видео. Будьте первым!</div>';
+                return;
+            }
+            
+            videoGrid.innerHTML = videos.map(video => {
+                let embedUrl = video.videoUrl;
+                if (video.videoUrl.includes('youtube.com/watch?v=')) {
+                    embedUrl = video.videoUrl.replace('watch?v=', 'embed/');
+                } else if (video.videoUrl.includes('youtu.be/')) {
+                    embedUrl = video.videoUrl.replace('youtu.be/', 'youtube.com/embed/');
+                }
+                
+                return `
+                    <div class="video-card">
+                        <iframe 
+                            class="video-player" 
+                            src="${embedUrl}" 
+                            frameborder="0" 
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                            allowfullscreen>
+                        </iframe>
+                        <div class="video-info">
+                            <div class="video-title">${video.title}</div>
+                            <div class="video-description">${video.description || 'Нет описания'}</div>
+                            <div class="video-views">
+                                👁️ ${video.views} просмотров • 👤 ${video.author || 'Аноним'}
+                            </div>
+                            <div style="color: #666; font-size: 12px; margin-top: 5px;">📅 ${video.date}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function showUploadForm() {
+            document.getElementById('uploadForm').style.display = 'block';
+            document.getElementById('overlay').style.display = 'block';
+        }
+        
+        function hideUploadForm() {
+            document.getElementById('uploadForm').style.display = 'none';
+            document.getElementById('overlay').style.display = 'none';
+            document.getElementById('uploadFormElement').reset();
+        }
+        
+        document.getElementById('uploadFormElement').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const title = document.getElementById('videoTitle').value;
+            const description = document.getElementById('videoDescription').value;
+            const videoUrl = document.getElementById('videoUrl').value;
+            
+            if (!title || !videoUrl) {
+                alert('❌ Заполните название и ссылку на видео!');
+                return;
+            }
+            
+            addVideo(title, description, videoUrl);
+            alert('✅ Видео опубликовано!');
+            hideUploadForm();
+            loadVideos();
+        });
+
+        setInterval(loadVideos, 10000);
+        document.addEventListener('DOMContentLoaded', loadVideos);
+    </script>
+</body>
+  </html>
